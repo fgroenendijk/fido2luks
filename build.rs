@@ -17,6 +17,9 @@ use structopt::clap::Shell;
 use structopt::StructOpt;
 
 fn main() {
+    // Apply ring patches before building
+    apply_ring_patches();
+    
     // generate completion scripts, zsh does panic for some reason
     for shell in Shell::variants().iter().filter(|shell| **shell != "zsh") {
         Args::clap().gen_completions(
@@ -24,5 +27,21 @@ fn main() {
             Shell::from_str(shell).unwrap(),
             env!("CARGO_MANIFEST_DIR"),
         );
+    }
+}
+
+fn apply_ring_patches() {
+    use std::process::Command;
+    
+    // Always apply patches to ensure they're up to date
+    println!("cargo:rerun-if-changed=apply-ring-patches.sh");
+    println!("cargo:rerun-if-changed=patches/ring.patch");
+    
+    let status = Command::new("./apply-ring-patches.sh")
+        .status()
+        .expect("Failed to execute apply-ring-patches.sh");
+    
+    if !status.success() {
+        panic!("Failed to apply ring patches");
     }
 }

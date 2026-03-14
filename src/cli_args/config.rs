@@ -1,6 +1,6 @@
 use crate::error::*;
 use crate::*;
-use ring::digest;
+use sha2::{Sha256, Digest};
 
 use std::fmt;
 use std::fs::File;
@@ -90,7 +90,7 @@ impl SecretInput {
         &self,
         password_helper: Option<impl FnOnce() -> Fido2LuksResult<String>>,
     ) -> Fido2LuksResult<[u8; 32]> {
-        let mut digest = digest::Context::new(&digest::SHA256);
+        let mut hasher = Sha256::new();
         match self {
             SecretInput::File { path } => {
                 let mut do_io = || {
@@ -98,7 +98,7 @@ impl SecretInput {
                     let mut buf = [0u8; 512];
                     loop {
                         let red = reader.read(&mut buf)?;
-                        digest.update(&buf[0..red]);
+                        hasher.update(&buf[0..red]);
                         if red == 0 {
                             break;
                         }
@@ -107,10 +107,11 @@ impl SecretInput {
                 };
                 do_io().map_err(|cause| Fido2LuksError::KeyfileError { cause })?;
             }
-            _ => digest.update(self.obtain(password_helper)?.as_slice()),
+            _ => hasher.update(self.obtain(password_helper)?.as_slice()),
         }
+        let result = hasher.finalize();
         let mut salt = [0u8; 32];
-        salt.as_mut().copy_from_slice(digest.finish().as_ref());
+        salt.copy_from_slice(&result);
         Ok(salt)
     }
 }

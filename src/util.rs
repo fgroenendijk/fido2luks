@@ -1,16 +1,17 @@
 use crate::error::*;
-use ring::digest;
+use sha2::{Sha256, Digest};
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
 pub fn sha256(messages: &[&[u8]]) -> [u8; 32] {
-    let mut digest = digest::Context::new(&digest::SHA256);
+    let mut hasher = Sha256::new();
     for m in messages.iter() {
-        digest.update(m);
+        hasher.update(m);
     }
+    let result = hasher.finalize();
     let mut secret = [0u8; 32];
-    secret.as_mut().copy_from_slice(digest.finish().as_ref());
+    secret.copy_from_slice(&result);
     secret
 }
 pub fn read_password_tty(q: &str, verify: bool) -> Fido2LuksResult<String> {
