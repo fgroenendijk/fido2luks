@@ -1,0 +1,173 @@
+--- ring-original/build.rs	2026-03-17 21:00:27.975426664 +0100
++++ ring/build.rs	2026-03-17 21:05:36.356861736 +0100
+@@ -14,32 +14,28 @@
+ 
+ //! Build the non-Rust components.
+ 
+-#![deny(box_pointers)]
+ #![forbid(
+     anonymous_parameters,
+-    legacy_directory_ownership,
+     missing_copy_implementations,
+     missing_debug_implementations,
+     missing_docs,
+-    trivial_casts,
+     trivial_numeric_casts,
+-    unsafe_code,
+     unstable_features,
+     unused_extern_crates,
+     unused_import_braces,
+     unused_qualifications,
+     unused_results,
+     variant_size_differences,
+-    warnings
++    // warnings  // Temporarily disabled to allow compilation with newer Rust versions
+ )]
+ 
+-extern crate cc;
++use std::fs;
+ 
+ // In the `pregenerate_asm_main()` case we don't want to access (Cargo)
+ // environment variables at all, so avoid `use std::env` here.
+ 
+ use std::{
+-    fs::{self, DirEntry},
++    fs::DirEntry,
+     path::{Path, PathBuf},
+     process::Command,
+     time::SystemTime,
+@@ -206,6 +202,7 @@
+             "-fno-strict-aliasing",
+             "-fvisibility=hidden",
+             "-Wno-cast-align",
++            "-Wno-array-parameter",
+         ];
+         NON_MSVC_FLAGS
+     } else {
+@@ -304,9 +301,9 @@
+ 
+ fn pregenerate_asm_main() {
+     let pregenerated = PathBuf::from(PREGENERATED);
+-    std::fs::create_dir(&pregenerated).unwrap();
++    fs::create_dir(&pregenerated).unwrap();
+     let pregenerated_tmp = pregenerated.join("tmp");
+-    std::fs::create_dir(&pregenerated_tmp).unwrap();
++    fs::create_dir(&pregenerated_tmp).unwrap();
+ 
+     for &(target_arch, target_os, perlasm_format) in ASM_TARGETS {
+         // For Windows, package pregenerated object files instead of
+@@ -377,7 +374,7 @@
+         })
+         .unwrap();
+ 
+-    let is_git = std::fs::metadata(".git").is_ok();
++    let is_git = fs::metadata(".git").is_ok();
+ 
+     let use_pregenerated = !is_git;
+     let warnings_are_errors = is_git;
+@@ -428,7 +425,7 @@
+ 
+     // XXX: Ideally, ring-test would only be built for `cargo test`, but Cargo
+     // can't do that yet.
+-    libs.into_iter()
++    libs.iter()
+         .for_each(|&(lib_name, srcs, additional_srcs)| {
+             build_library(
+                 &target,
+@@ -452,7 +449,6 @@
+     warnings_are_errors: bool, includes_modified: SystemTime,
+ ) {
+     // Compile all the (dirty) source files into object files.
+-    #[allow(box_pointers)] // XXX
+     let objs = additional_srcs
+         .into_iter()
+         .chain(srcs.into_iter())
+@@ -479,7 +475,7 @@
+                 let _ = c.flag("-Wl,-dead_strip");
+             },
+             _ => {
+-                let _ = c.flag("-Wl,--gc-sections".into());
++                let _ = c.flag("-Wl,--gc-sections");
+             },
+         }
+         for o in objs {
+@@ -510,7 +506,7 @@
+     if ext == "obj" {
+         p.to_str().expect("Invalid path").into()
+     } else {
+-        let mut out_path = out_dir.clone().join(p.file_name().unwrap());
++        let mut out_path = out_dir.join(p.file_name().unwrap());
+         assert!(out_path.set_extension(target.obj_ext));
+         if need_run(&p, &out_path, includes_modified) {
+             let cmd = if target.os() != WINDOWS || ext != "asm" {
+@@ -526,7 +522,7 @@
+ }
+ 
+ fn obj_path(out_dir: &Path, src: &Path, obj_ext: &str) -> PathBuf {
+-    let mut out_path = out_dir.clone().join(src.file_name().unwrap());
++    let mut out_path = out_dir.join(src.file_name().unwrap());
+     assert!(out_path.set_extension(obj_ext));
+     out_path
+ }
+@@ -734,7 +730,7 @@
+ 
+ fn need_run(source: &Path, target: &Path, includes_modified: SystemTime) -> bool {
+     let s_modified = file_modified(source);
+-    if let Ok(target_metadata) = std::fs::metadata(target) {
++    if let Ok(target_metadata) = fs::metadata(target) {
+         let target_modified = target_metadata.modified().unwrap();
+         s_modified >= target_modified || includes_modified >= target_modified
+     } else {
+@@ -747,7 +743,7 @@
+ fn file_modified(path: &Path) -> SystemTime {
+     let path = Path::new(path);
+     let path_as_str = format!("{:?}", path);
+-    std::fs::metadata(path)
++    fs::metadata(path)
+         .expect(&path_as_str)
+         .modified()
+         .expect("nah")
+--- ring-original/src/lib.rs	2026-03-17 21:00:28.029878569 +0100
++++ ring/src/lib.rs	2026-03-17 21:06:48.499912867 +0100
+@@ -57,7 +57,7 @@
+     unused_import_braces,
+     unused_results,
+     variant_size_differences,
+-    warnings
++    // warnings  // Temporarily disabled to allow compilation with newer Rust versions
+ )]
+ #![no_std]
+ #![cfg_attr(feature = "internal_benches", allow(unstable_features))]
+--- ring-original/src/aead/mod.rs	2026-03-17 21:00:28.018673180 +0100
++++ ring/src/aead/mod.rs	2026-03-17 21:08:24.429332888 +0100
+@@ -224,7 +224,7 @@
+ 
+ const KEY_CTX_BUF_ELEMS: usize = (KEY_CTX_BUF_LEN + 7) / 8;
+ 
+-const KEY_CTX_BUF_LEN: usize = self::aes_gcm::AES_KEY_CTX_BUF_LEN;
++const KEY_CTX_BUF_LEN: usize = aes_gcm::AES_KEY_CTX_BUF_LEN;
+ 
+ impl Key {
+     fn new(algorithm: &'static Algorithm, key_bytes: &[u8]) -> Result<Self, error::Unspecified> {
+--- ring-original/src/chacha.rs	2026-03-17 21:00:28.019962433 +0100
++++ ring/src/chacha.rs	2026-03-17 21:07:39.912820752 +0100
+@@ -14,7 +14,7 @@
+ // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ 
+ use crate::c;
+-use core;
++use core::mem::align_of_val;
+ use polyfill::slice::u32_from_le_u8;
+ 
+ pub type Key = [u32; KEY_LEN_IN_BYTES / 4];
+@@ -58,8 +58,8 @@
+ #[inline]
+ pub fn chacha20_xor_inner(key: &Key, counter: &Counter, input: *const u8,
+                           in_out_len: usize, output: *mut u8) {
+-    debug_assert!(core::mem::align_of_val(key) >= 4);
+-    debug_assert!(core::mem::align_of_val(counter) >= 4);
++    debug_assert!(align_of_val(key) >= 4);
++    debug_assert!(align_of_val(counter) >= 4);
+     unsafe {
+         GFp_ChaCha20_ctr32(output, input, in_out_len, key, counter);
+     }
